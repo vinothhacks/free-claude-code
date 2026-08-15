@@ -86,16 +86,19 @@ def wsl_windows_host_ip() -> str | None:
                 wsl,
                 "bash",
                 "-lc",
-                "ip route show default | awk '{print $3; exit}'",
+                "ip route show default",
             ],
             check=False,
             capture_output=True,
             text=True,
-            timeout=15,
+            timeout=20,
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    candidate = completed.stdout.strip().split()[0] if completed.stdout.strip() else ""
+    parts = completed.stdout.split()
+    if "via" not in parts:
+        return None
+    candidate = parts[parts.index("via") + 1]
     try:
         address = ipaddress.ip_address(candidate)
     except ValueError:
