@@ -15,13 +15,14 @@
 [![Code style: Ruff](https://img.shields.io/badge/code%20formatting-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
-[Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-your-client) · [Integrations](#optional-integrations) · [Manage](#manage-your-installation)
+[Quick Start](#quick-start) · [Fork additions](#fork-additions) · [Providers](#choose-a-provider) · [Clients](#connect-your-client) · [Integrations](#optional-integrations) · [Manage](#manage-your-installation)
 
 </div>
 
 > This repository is [vinothhacks/free-claude-code](https://github.com/vinothhacks/free-claude-code),
 > built on [Alishahryar1/free-claude-code](https://github.com/Alishahryar1/free-claude-code).
 > Extra clients here: `fcc-atomic`, `fcc-prime`, and `fcc-muse` (optional MCP).
+> Also added: auto-install, Meta Model API catalog, agent loops, and goal-oriented clients.
 > Do not commit `.env`, API keys, or passwords.
 
 ## What You Get
@@ -32,6 +33,58 @@
 - **Save time and tokens.** Five built-in optimizations handle quota probes, command-prefix detection, title generation, suggestion mode, and filepath extraction locally instead of calling your provider; optionally enable [RTK](https://github.com/rtk-ai/rtk) to filter noisy terminal output before it reaches the model.
 - **Keep coding-agent capabilities.** Use streaming, tools, reasoning, and image input with compatible models.
 - **Work where you want.** Launch from your desktop, connect supported IDEs, or use optional Discord and Telegram bots with voice notes.
+
+<a id="fork-additions"></a>
+
+## Fork additions
+
+Upstream FCC already proxies Claude Code, Codex, and Pi. This fork adds extra agents, the OpenAI Chat Completions ingress they need, and first-run setup so a friend can install from GitHub and run.
+
+### Auto-install
+
+`fcc-prime` and `fcc-muse` install the missing CLI the first time you run them (unless `FCC_NO_AUTO_INSTALL=1`).
+
+- **Prime Agent** — downloads the latest GitHub release tarball and runs `npm install -g` (Node.js 20.6+).
+- **Muse Code** — runs Meta’s official installer. On Windows that happens inside WSL2.
+- The FCC `install.sh` / `install.ps1` prompts also offer Muse Code and Prime Agent.
+
+Keys stay in `~/.fcc/.env`. Installers never write API keys into the repo.
+
+### Meta API (Muse Code)
+
+`fcc-muse` points [Muse Code](https://dev.meta.ai/docs/muse-code) at the local proxy (`--provider meta --base-url <fcc>`).
+
+- FCC serves Muse’s catalog at `GET /muse-code/models` (plus empty `/muse-code/telemetry` and `/muse-code/search` stubs).
+- Chat still goes through FCC `POST /v1/chat/completions` and `/v1/responses`.
+- Optional MCP: `FCC_MUSE_MCP_COMMAND` or `FCC_MUSE_MCP_SERVERS`.
+- On Windows, Muse runs in WSL. `fcc-muse` rewrites `127.0.0.1` to the Windows host IP so WSL can reach `fcc-server`.
+
+### Agent loop
+
+OpenAI-style agents can run a multi-turn tool loop through the same proxy as Claude Messages:
+
+- Inbound `POST /v1/chat/completions` (this fork) alongside `/v1/messages` and `/v1/responses`.
+- `fcc-atomic` sends one Chat Completions turn (Atomic Agents + Instructor when installed).
+- `fcc-prime` starts Prime Agent with an ephemeral FCC provider (`openai-completions`) so Prime’s coding loop uses your Admin model.
+
+### Goal-oriented clients
+
+Give the agent a goal (a prompt or task) and let it work against FCC models:
+
+| Command | Goal style |
+| --- | --- |
+| `fcc-atomic ping` | One structured turn. Uses Atomic Agents schemas when that library is installed. |
+| `fcc-prime` | Prime Agent session aimed at the FCC provider/model. |
+| `fcc-muse` | Muse Code session aimed at Meta-compatible FCC endpoints. |
+
+Example:
+
+```bash
+fcc-server
+fcc-atomic "summarize this repo's entry points"
+fcc-prime
+fcc-muse
+```
 
 <div align="center">
   <img src="assets/pic.png" alt="Claude Code running with Free Claude Code" width="700">
