@@ -28,7 +28,11 @@ from .handlers import (
     ResponsesHandler,
     TokenCountHandler,
 )
-from .model_catalog import ModelsListResponse, build_models_list_response
+from .model_catalog import (
+    ModelsListResponse,
+    build_models_list_response,
+    build_muse_code_catalog,
+)
 from .ports import ApiServices
 from .request_errors import ordinary_application_error_response
 from .request_ids import get_request_id
@@ -258,6 +262,31 @@ async def list_models(
     """List the model ids this proxy advertises to compatible clients."""
     trace_event(stage="ingress", event="free_claude_code.api.models.list", source="api")
     return build_models_list_response(settings, services.requests)
+
+
+@router.get("/muse-code/models")
+async def muse_code_models(
+    services: ApiServices = Depends(get_services),
+    settings: Settings = Depends(get_settings),
+    _auth=Depends(require_proxy_auth),
+):
+    """Advertise FCC models in the catalog format Muse Code fetches."""
+
+    listed = build_models_list_response(settings, services.requests)
+    return build_muse_code_catalog(
+        default_model=settings.model,
+        extra_model_ids=[item.id for item in listed.data],
+    )
+
+
+@router.api_route("/muse-code/telemetry", methods=["GET", "POST", "DELETE"])
+async def muse_code_telemetry():
+    return {}
+
+
+@router.api_route("/muse-code/search", methods=["GET", "POST"])
+async def muse_code_search():
+    return {"results": []}
 
 
 @router.post("/stop")

@@ -70,7 +70,7 @@ fcc-muse
 
 - **fcc-atomic** — one Chat Completions turn through FCC. Works without extra packages; install `atomic-agents` and `instructor` if you want the Atomic Agents library.
 - **fcc-prime** — needs Node.js 20.6+ and npm. Missing Prime Agent is installed automatically.
-- **fcc-muse** — macOS/Linux, or Windows with [WSL2](https://learn.microsoft.com/windows/wsl/install). Missing Muse Code is installed automatically.
+- **fcc-muse** — macOS/Linux, or Windows with [WSL2](https://learn.microsoft.com/windows/wsl/install). Missing Muse Code is installed automatically. On Windows, `fcc-muse` points Muse at the Windows host IP so WSL can reach `fcc-server`.
 
 To update later, re-run the same `uv tool install --force ...` command.
 

@@ -1,5 +1,6 @@
 """Model-list response construction for Claude-compatible clients."""
 
+from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import BaseModel
@@ -112,6 +113,41 @@ def build_models_list_response(
         has_more=False,
         last_id=models[-1].id if models else None,
     )
+
+
+def build_muse_code_catalog(
+    *,
+    default_model: str,
+    extra_model_ids: Sequence[str] = (),
+) -> dict[str, object]:
+    """Return the Muse Code ``GET /muse-code/models`` catalog payload."""
+
+    ids: list[str] = []
+    for model_id in (default_model, *extra_model_ids):
+        cleaned = model_id.strip()
+        if cleaned and cleaned not in ids:
+            ids.append(cleaned)
+    return {
+        "schema_version": 1,
+        "data": [
+            {
+                "provider_id": "meta",
+                "profile_id": "default",
+                "id": model_id,
+                "model_id": model_id,
+                "display_label": f"FCC {model_id}",
+                "visibility": "visible",
+                "release_date": "2025-01-01",
+                "display_order": index + 1,
+                "is_current": True,
+                "is_default": index == 0,
+                "context_limit": 128000,
+                "output_limit": 8192,
+                "description": f"{model_id} via Free Claude Code",
+            }
+            for index, model_id in enumerate(ids)
+        ],
+    }
 
 
 def _discovered_model_response(model_id: str, *, display_name: str) -> ModelResponse:

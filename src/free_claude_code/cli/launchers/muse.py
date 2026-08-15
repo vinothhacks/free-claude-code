@@ -13,7 +13,12 @@ from free_claude_code.config.loader import get_settings
 from free_claude_code.config.server_urls import local_proxy_root_url
 
 from .common import preflight_proxy, run_client_process
-from .ensure import ClientSpec, ensure_muse_client, muse_install_hint
+from .ensure import (
+    ClientSpec,
+    ensure_muse_client,
+    muse_install_hint,
+    proxy_url_for_client,
+)
 from .openai_compat import build_openai_compat_env, proxy_bearer_token
 
 _DISPLAY_NAME = "Muse Code"
@@ -37,25 +42,26 @@ def launch(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(1)
 
     client = ensure_muse_client()
+    muse_proxy_url = proxy_url_for_client(proxy_root_url, client)
     settings_path = write_muse_settings_file(
         Path(tempfile.mkdtemp(prefix="fcc-muse-")),
         mcp_servers=build_muse_mcp_servers(os.environ),
     )
     env = build_muse_launcher_env(
-        proxy_root_url=proxy_root_url,
+        proxy_root_url=muse_proxy_url,
         auth_token=settings.proxy_auth_token,
         model=settings.model,
         base_env=os.environ,
     )
     print(
-        f"fcc-muse: routing Muse Code through {proxy_root_url} model {settings.model}",
+        f"fcc-muse: routing Muse Code through {muse_proxy_url} model {settings.model}",
         file=sys.stderr,
     )
     run_client_process(
         command=build_muse_launcher_command(
             client=client,
             argv=args,
-            proxy_root_url=proxy_root_url,
+            proxy_root_url=muse_proxy_url,
             model=settings.model,
             settings_path=settings_path,
         ),

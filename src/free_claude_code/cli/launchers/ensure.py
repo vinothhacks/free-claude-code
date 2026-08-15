@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
 import shlex
@@ -14,6 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 NO_AUTO_INSTALL_ENV = "FCC_NO_AUTO_INSTALL"
@@ -54,6 +56,53 @@ class ClientSpec:
         if self.kind == "wsl":
             return wsl_exec(self.binary, args)
         return [self.binary, *args]
+
+
+def proxy_url_for_client(proxy_root_url: str, client: ClientSpec) -> str:
+    """Rewrite loopback URLs so Muse inside WSL can reach Windows FCC."""
+
+    if client.kind != "wsl":
+        return proxy_root_url
+    parsed = urlparse(proxy_root_url)
+    hostname = (parsed.hostname or "").strip().strip("[]").lower()
+    if hostname not in {"127.0.0.1", "localhost", "::1"}:
+        return proxy_root_url
+    host_ip = wsl_windows_host_ip()
+    if not host_ip:
+        return proxy_root_url
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    return urlunparse(parsed._replace(netloc=f"{host_ip}:{port}"))
+
+
+def wsl_windows_host_ip() -> str | None:
+    """Return the Windows host IPv4 that WSL can use to reach FCC."""
+
+    wsl = shutil.which("wsl")
+    if wsl is None:
+        return None
+    try:
+        completed = subprocess.run(
+            [
+                wsl,
+                "bash",
+                "-lc",
+                "ip route show default | awk '{print $3; exit}'",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    candidate = completed.stdout.strip().split()[0] if completed.stdout.strip() else ""
+    try:
+        address = ipaddress.ip_address(candidate)
+    except ValueError:
+        return None
+    if address.version != 4 or address.is_loopback:
+        return None
+    return candidate
 
 
 def auto_install_enabled(env: dict[str, str] | None = None) -> bool:

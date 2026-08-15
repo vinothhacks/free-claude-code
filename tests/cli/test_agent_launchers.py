@@ -5,6 +5,7 @@ from pathlib import Path
 from free_claude_code.cli.launchers.ensure import (
     ClientSpec,
     auto_install_enabled,
+    proxy_url_for_client,
     windows_path_text_to_wsl,
     wsl_exec,
 )
@@ -172,3 +173,18 @@ def test_prime_skips_install_when_disabled(monkeypatch, capsys) -> None:
     assert "Could not find Prime Agent" in err
     assert "fcc-prime can install it" in err or "github.com/PrimeIntellect-ai" in err
     assert os.environ["FCC_NO_AUTO_INSTALL"] == "1"
+
+
+def test_wsl_proxy_url_rewrites_loopback_to_windows_host(monkeypatch) -> None:
+    from free_claude_code.cli.launchers import ensure as ensure_mod
+
+    monkeypatch.setattr(ensure_mod, "wsl_windows_host_ip", lambda: "172.18.240.1")
+    client = ClientSpec(kind="wsl", binary="muse")
+    assert (
+        proxy_url_for_client("http://127.0.0.1:8082", client)
+        == "http://172.18.240.1:8082"
+    )
+    native = ClientSpec(kind="native", binary="muse")
+    assert proxy_url_for_client("http://127.0.0.1:8082", native) == (
+        "http://127.0.0.1:8082"
+    )

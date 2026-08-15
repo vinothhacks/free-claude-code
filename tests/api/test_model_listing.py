@@ -149,3 +149,24 @@ def test_models_list_works_with_empty_discovery_catalog():
         "claude-3-freecc-no-thinking/open_router/anthropic/claude-opus",
     ]
     assert "claude-sonnet-4-20250514" in ids
+
+
+def test_muse_code_catalog_uses_configured_model_as_default():
+    from free_claude_code.api.model_catalog import build_muse_code_catalog
+
+    catalog = build_muse_code_catalog(
+        default_model="lmstudio/auto/gpt-opus-4.8",
+        extra_model_ids=["anthropic/lmstudio/auto/gpt-opus-4.8"],
+    )
+    assert catalog["schema_version"] == 1
+    assert catalog["data"][0]["id"] == "lmstudio/auto/gpt-opus-4.8"
+    assert catalog["data"][0]["is_default"] is True
+    assert catalog["data"][0]["provider_id"] == "meta"
+
+    app = create_test_app(_settings(model="lmstudio/auto/gpt-opus-4.8"))
+    response = TestClient(app).get("/muse-code/models")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"][0]["model_id"] == "lmstudio/auto/gpt-opus-4.8"
+    assert TestClient(app).get("/muse-code/telemetry").status_code == 200
+    assert TestClient(app).get("/muse-code/search").json() == {"results": []}
