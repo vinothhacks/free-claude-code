@@ -6,6 +6,7 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from free_claude_code.config.loader import get_settings
 from free_claude_code.config.server_urls import local_proxy_root_url
@@ -93,7 +94,7 @@ def build_prime_models_document(
     proxy_root_url: str,
     model: str,
     api_key_env: str = _API_KEY_ENV,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Return a Prime ``models.json`` that points at FCC Chat Completions.
 
     ``apiKey`` is an environment variable *name*, never a secret value.

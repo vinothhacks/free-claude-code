@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from http.client import HTTPResponse
 from urllib.parse import urlsplit
-from urllib.request import ProxyHandler, Request, build_opener
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 _DIRECT_OPENER = build_opener(ProxyHandler({}))
 _LOOPBACK_BYPASS_HOSTS = ("127.0.0.1", "localhost", "::1")
@@ -14,6 +14,12 @@ def open_local_request(request: Request, *, timeout: float) -> HTTPResponse:
     """Open an FCC-local request without consulting machine proxy settings."""
 
     return _DIRECT_OPENER.open(request, timeout=timeout)
+
+
+def open_request(request: Request, *, timeout: float) -> HTTPResponse:
+    """Open an HTTP request using the process default opener and proxies."""
+
+    return urlopen(request, timeout=timeout)
 
 
 def with_local_proxy_bypass(

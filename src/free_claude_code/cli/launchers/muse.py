@@ -6,6 +6,7 @@ import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from free_claude_code.config.loader import get_settings
 from free_claude_code.config.server_urls import local_proxy_root_url
@@ -79,7 +80,7 @@ def launch(argv: Sequence[str] | None = None) -> None:
             session_dir.cleanup()
 
 
-def build_muse_mcp_servers(env: Mapping[str, str]) -> dict[str, object]:
+def build_muse_mcp_servers(env: Mapping[str, str]) -> dict[str, Any]:
     """Return Muse ``mcp_servers`` from env. Never reads passwords from disk."""
 
     raw = env.get(_MCP_SERVERS_ENV, "").strip()

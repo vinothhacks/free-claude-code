@@ -14,7 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlunparse
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from free_claude_code.cli.local_http import open_request
 
 NO_AUTO_INSTALL_ENV = "FCC_NO_AUTO_INSTALL"
 USER_AGENT = "free-claude-code"
@@ -91,7 +93,7 @@ def wsl_windows_host_ip() -> str | None:
             text=True,
             timeout=20,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None
     parts = completed.stdout.split()
     if "via" not in parts:
@@ -324,7 +326,7 @@ def resolve_prime_version() -> str:
         text = download_text(PRIME_STABLE_URL).strip().lstrip("v")
         if text and all(ch.isalnum() or ch in ".-" for ch in text):
             return text
-    except (HTTPError, URLError, OSError, TimeoutError):
+    except HTTPError, URLError, OSError, TimeoutError:
         pass
     payload = json.loads(download_text(PRIME_RELEASE_API_URL))
     tag = str(payload.get("tag_name") or "").strip().lstrip("v")
@@ -336,7 +338,7 @@ def resolve_prime_version() -> str:
 def download_prime_tarball_sha256(version: str) -> str | None:
     try:
         body = download_text(PRIME_SHA_URL.format(version=version))
-    except (HTTPError, URLError, OSError, TimeoutError):
+    except HTTPError, URLError, OSError, TimeoutError:
         return None
     wanted = f"prime-agent-{version}.tgz"
     for line in body.splitlines():
@@ -380,7 +382,7 @@ def wsl_is_usable(wsl: str | None = None) -> bool:
             capture_output=True,
             timeout=20,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return False
     return completed.returncode == 0
 
@@ -402,7 +404,7 @@ def wsl_has_muse() -> bool:
             text=True,
             timeout=20,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return False
     return completed.returncode == 0 and bool(completed.stdout.strip())
 
@@ -416,7 +418,7 @@ def npm_global_prefix(npm: str) -> str | None:
             text=True,
             timeout=20,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None
     prefix = completed.stdout.strip()
     return prefix or None
@@ -454,7 +456,7 @@ def download_text(url: str) -> str:
 
 def download_bytes(url: str) -> bytes:
     request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-    with urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+    with open_request(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
         return response.read()
 
 

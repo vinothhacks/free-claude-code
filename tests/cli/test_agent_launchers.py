@@ -210,8 +210,22 @@ def _tracking_temporary_directory(
     created: list[Path],
 ) -> type[tempfile.TemporaryDirectory[str]]:
     class TrackingTemporaryDirectory(tempfile.TemporaryDirectory[str]):
-        def __init__(self, *args: object, **kwargs: object) -> None:
-            super().__init__(*args, **kwargs)
+        def __init__(
+            self,
+            suffix: str | None = None,
+            prefix: str | None = None,
+            dir: str | None = None,
+            ignore_cleanup_errors: bool = False,
+            *,
+            delete: bool = True,
+        ) -> None:
+            super().__init__(
+                suffix=suffix,
+                prefix=prefix,
+                dir=dir,
+                ignore_cleanup_errors=ignore_cleanup_errors,
+                delete=delete,
+            )
             created.append(Path(self.name))
 
     return TrackingTemporaryDirectory

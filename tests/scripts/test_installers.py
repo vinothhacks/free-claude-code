@@ -293,9 +293,12 @@ url=""
 output=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        -o)
+        -o|--output)
             shift
             output=$1
+            ;;
+        -H|--header|-A|--user-agent)
+            shift
             ;;
         http*)
             url=$1
@@ -303,6 +306,13 @@ while [ "$#" -gt 0 ]; do
     esac
     shift
 done
+write_body() {
+    if [ -n "$output" ]; then
+        printf '%s\n' "$1" > "$output"
+    else
+        printf '%s\n' "$1"
+    fi
+}
 echo "download:$url" >> "$CALL_LOG"
 case "$url:$FAIL_STEP" in
     *claude.ai*:claude-download|*chatgpt.com*:codex-download|*pi.dev*:pi-download|*rtk-ai*:rtk-download|*astral.sh*:uv-download)
@@ -315,20 +325,20 @@ case "$url" in
     *pi.dev*) source="$FAKE_FIXTURES/pi-installer.sh" ;;
     *dev.meta.ai*) source="$FAKE_FIXTURES/muse-installer.sh" ;;
     *prime-agent/releases/latest/download/stable*)
-        printf '0.7.2\\n' > "$output"
+        write_body '0.7.2'
         exit 0
         ;;
     *api.github.com/repos/PrimeIntellect-ai/prime-agent*)
-        printf '{"tag_name":"v0.7.2"}\\n' > "$output"
+        write_body '{"tag_name":"v0.7.2"}'
         exit 0
         ;;
     *prime-agent-*.tgz|*prime-agent/releases/download/*)
-        printf 'fake-prime-tarball\\n' > "$output"
+        write_body 'fake-prime-tarball'
         exit 0
         ;;
     *rtk-ai*)
         if [ "$FAIL_STEP" = "rtk-install" ]; then
-            printf 'invalid archive\\n' > "$output"
+            write_body 'invalid archive'
             exit 0
         fi
         source="$FAKE_FIXTURES/rtk-x86_64-unknown-linux-musl.tar.gz"
@@ -336,7 +346,11 @@ case "$url" in
     *astral.sh*) source="$FAKE_FIXTURES/uv-installer.sh" ;;
     *) exit 42 ;;
 esac
-cp "$source" "$output"
+if [ -n "$output" ]; then
+    cp "$source" "$output"
+else
+    cat "$source"
+fi
 """,
     )
     _write_executable(
@@ -743,6 +757,8 @@ def test_install_sh_preserves_valid_existing_tools(
     posix_harness.add_client("claude")
     posix_harness.add_client("codex")
     posix_harness.add_client("pi")
+    posix_harness.add_client("muse")
+    posix_harness.add_client("prime-agent")
     posix_harness.add_uv(uv_version)
 
     result = posix_harness.run()

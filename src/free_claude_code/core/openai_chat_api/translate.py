@@ -63,9 +63,7 @@ def _content_parts_to_blocks(parts: list[dict[str, Any]]) -> list[dict[str, Any]
             raw = part.get("image_url") or part.get("image")
             url = raw.get("url") if isinstance(raw, dict) else raw
             if isinstance(url, str) and url:
-                blocks.append(
-                    {"type": "image", "source": _image_source_from_url(url)}
-                )
+                blocks.append({"type": "image", "source": _image_source_from_url(url)})
     return blocks
 
 
@@ -92,7 +90,7 @@ def _assistant_blocks(message: ChatMessage) -> list[dict[str, Any]]:
         raw_args = call.function.arguments or "{}"
         try:
             parsed = json.loads(raw_args) if raw_args.strip() else {}
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             # A malformed argument string must not abort the whole request;
             # forward it verbatim so the model can still see what it emitted.
             parsed = {"_raw_arguments": raw_args}
@@ -123,7 +121,9 @@ def _tools_to_anthropic(request: ChatCompletionsRequest) -> list[dict[str, Any]]
     return tools or None
 
 
-def _tool_choice_to_anthropic(choice: str | dict[str, Any] | None) -> dict[str, Any] | None:
+def _tool_choice_to_anthropic(
+    choice: str | dict[str, Any] | None,
+) -> dict[str, Any] | None:
     if choice is None:
         return None
     if isinstance(choice, str):
@@ -362,7 +362,7 @@ def iter_sse_data(raw: str, buffer: list[str]) -> Iterable[dict[str, Any]]:
             continue
         try:
             decoded = json.loads(payload)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         if isinstance(decoded, dict):
             yield decoded
@@ -417,7 +417,9 @@ async def anthropic_sse_to_chat_sse(
                 if not role_sent:
                     role_sent = True
                     yield _chunk(
-                        completion_id, response_model, {"role": "assistant", "content": ""}
+                        completion_id,
+                        response_model,
+                        {"role": "assistant", "content": ""},
                     )
 
             elif event_type == "content_block_start":
