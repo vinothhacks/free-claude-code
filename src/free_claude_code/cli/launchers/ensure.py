@@ -1,7 +1,5 @@
 """Install missing Muse Code / Prime Agent CLIs the first time FCC launches them."""
 
-from __future__ import annotations
-
 import hashlib
 import ipaddress
 import json

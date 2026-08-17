@@ -1,7 +1,5 @@
 """Installed ``fcc-muse`` launcher for Meta Muse Code, including optional MCP."""
 
-from __future__ import annotations
-
 import json
 import os
 import sys
@@ -43,33 +41,42 @@ def launch(argv: Sequence[str] | None = None) -> None:
 
     client = ensure_muse_client()
     muse_proxy_url = proxy_url_for_client(proxy_root_url, client)
-    settings_path = write_muse_settings_file(
-        Path(tempfile.mkdtemp(prefix="fcc-muse-")),
-        mcp_servers=build_muse_mcp_servers(os.environ),
-    )
-    env = build_muse_launcher_env(
-        proxy_root_url=muse_proxy_url,
-        auth_token=settings.proxy_auth_token,
-        model=settings.model,
-        base_env=os.environ,
-    )
-    print(
-        f"fcc-muse: routing Muse Code through {muse_proxy_url} model {settings.model}",
-        file=sys.stderr,
-    )
-    run_client_process(
-        command=build_muse_launcher_command(
-            client=client,
-            argv=args,
+    mcp_servers = build_muse_mcp_servers(os.environ)
+    session_dir: tempfile.TemporaryDirectory[str] | None = None
+    try:
+        settings_path = None
+        if mcp_servers:
+            session_dir = tempfile.TemporaryDirectory(prefix="fcc-muse-")
+            settings_path = write_muse_settings_file(
+                Path(session_dir.name),
+                mcp_servers=mcp_servers,
+            )
+        env = build_muse_launcher_env(
             proxy_root_url=muse_proxy_url,
+            auth_token=settings.proxy_auth_token,
             model=settings.model,
-            settings_path=settings_path,
-        ),
-        env=env,
-        binary_name=_BINARY_NAME,
-        display_name=_DISPLAY_NAME,
-        install_hint=muse_install_hint(),
-    )
+            base_env=os.environ,
+        )
+        print(
+            f"fcc-muse: routing Muse Code through {muse_proxy_url} model {settings.model}",
+            file=sys.stderr,
+        )
+        run_client_process(
+            command=build_muse_launcher_command(
+                client=client,
+                argv=args,
+                proxy_root_url=muse_proxy_url,
+                model=settings.model,
+                settings_path=settings_path,
+            ),
+            env=env,
+            binary_name=_BINARY_NAME,
+            display_name=_DISPLAY_NAME,
+            install_hint=muse_install_hint(),
+        )
+    finally:
+        if session_dir is not None:
+            session_dir.cleanup()
 
 
 def build_muse_mcp_servers(env: Mapping[str, str]) -> dict[str, object]:
@@ -96,7 +103,9 @@ def build_muse_mcp_servers(env: Mapping[str, str]) -> dict[str, object]:
     }
 
 
-def build_muse_settings_document(*, mcp_servers: Mapping[str, object]) -> dict[str, object]:
+def build_muse_settings_document(
+    *, mcp_servers: Mapping[str, object]
+) -> dict[str, object]:
     """Return a Muse settings object. Empty MCP map is omitted."""
 
     document: dict[str, object] = {}

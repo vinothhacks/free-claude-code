@@ -12,6 +12,9 @@ FCC_COMMANDS = (
     "fcc-claude",
     "fcc-codex",
     "fcc-pi",
+    "fcc-atomic",
+    "fcc-prime",
+    "fcc-muse",
     "fcc-init",
     "free-claude-code",
 )
@@ -163,7 +166,7 @@ if [ "${1:-}" = "tool" ] && [ "${2:-}" = "uninstall" ]; then
         echo 'Tool `free-claude-code` is not installed' >&2
         exit 2
     fi
-    for name in fcc-desktop fcc-server fcc-claude fcc-codex fcc-pi fcc-init free-claude-code; do
+    for name in fcc-desktop fcc-server fcc-claude fcc-codex fcc-pi fcc-atomic fcc-prime fcc-muse fcc-init free-claude-code; do
         /bin/rm -f "$FAKE_TOOL_BIN/$name"
     done
     echo "Uninstalled free-claude-code"
@@ -522,6 +525,19 @@ function Remove-Item {
     }
     Microsoft.PowerShell.Management\Remove-Item @PSBoundParameters
 }
+function Get-Process {
+    [CmdletBinding()]
+    param([string[]] $Name)
+
+    if ([string]::IsNullOrWhiteSpace($env:FCC_RUNNING_COMMAND)) {
+        return
+    }
+    foreach ($requestedName in $Name) {
+        if ($requestedName -eq $env:FCC_RUNNING_COMMAND) {
+            [pscustomobject] @{ Id = 4242; ProcessName = $requestedName }
+        }
+    }
+}
 $installer = [scriptblock]::Create([IO.File]::ReadAllText($env:FCC_UNINSTALLER))
 if ($env:UNINSTALL_DRY_RUN -eq "1") {
     & $installer -DryRun
@@ -563,6 +579,7 @@ else {
             "CALL_LOG": str(log),
             "FAKE_TOOL_BIN": str(tool_bin),
             "FCC_UNINSTALLER": str(_repo_root() / "scripts" / "uninstall.ps1"),
+            "FCC_RUNNING_COMMAND": "",
             "FAIL_STEP": "",
             "UNINSTALL_DRY_RUN": "0",
         }

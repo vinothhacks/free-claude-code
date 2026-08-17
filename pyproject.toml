@@ -140,4 +140,7 @@ allowed-unresolved-imports = [
     "riva.client",
     "pystray",
     "PIL",
+    "instructor",
+    "atomic_agents",
+    "atomic_agents.context",
 ]

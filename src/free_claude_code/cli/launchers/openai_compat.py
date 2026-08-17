@@ -40,7 +40,11 @@ def build_openai_compat_env(
     """Point OpenAI-compatible SDKs at FCC without leaking parent OpenAI keys."""
 
     env = with_local_proxy_bypass(
-        {key: value for key, value in base_env.items() if key not in _OPENAI_STRIP_KEYS},
+        {
+            key: value
+            for key, value in base_env.items()
+            if key not in _OPENAI_STRIP_KEYS
+        },
         proxy_root_url=proxy_root_url,
     )
     base_url = openai_compat_base_url(proxy_root_url)

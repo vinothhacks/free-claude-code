@@ -1,7 +1,5 @@
 """Installed ``fcc-atomic`` launcher for Atomic Agents / Instructor clients."""
 
-from __future__ import annotations
-
 import json
 import os
 import sys

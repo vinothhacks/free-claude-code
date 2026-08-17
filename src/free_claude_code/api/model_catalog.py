@@ -1,7 +1,7 @@
 """Model-list response construction for Claude-compatible clients."""
 
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, TypedDict
 
 from pydantic import BaseModel
 
@@ -32,6 +32,27 @@ class ModelsListResponse(BaseModel):
     first_id: str | None
     has_more: bool
     last_id: str | None
+
+
+class MuseCodeModel(TypedDict):
+    provider_id: str
+    profile_id: str
+    id: str
+    model_id: str
+    display_label: str
+    visibility: str
+    release_date: str
+    display_order: int
+    is_current: bool
+    is_default: bool
+    context_limit: int
+    output_limit: int
+    description: str
+
+
+class MuseCodeCatalog(TypedDict):
+    schema_version: int
+    data: list[MuseCodeModel]
 
 
 SUPPORTED_CLAUDE_MODELS = [
@@ -119,7 +140,7 @@ def build_muse_code_catalog(
     *,
     default_model: str,
     extra_model_ids: Sequence[str] = (),
-) -> dict[str, object]:
+) -> MuseCodeCatalog:
     """Return the Muse Code ``GET /muse-code/models`` catalog payload."""
 
     ids: list[str] = []

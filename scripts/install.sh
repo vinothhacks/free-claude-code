@@ -881,7 +881,7 @@ configure_and_verify_free_claude_code() {
 
     if [ "$dry_run" -eq 1 ]; then
         print_command uv tool dir --bin
-        printf '+ verify fcc-desktop, fcc-server, fcc-claude, fcc-codex, and fcc-pi in the uv tool bin directory\n'
+        printf '+ verify FCC commands in the uv tool bin directory\n'
         print_command fcc-server --version
         return 0
     fi
@@ -899,7 +899,10 @@ configure_and_verify_free_claude_code() {
     export PATH
     hash -r 2>/dev/null || true
 
-    for command_name in fcc-desktop fcc-server fcc-claude fcc-codex fcc-pi; do
+    for command_name in $FCC_COMMANDS; do
+        case "$command_name" in
+            fcc-init|free-claude-code) continue ;;
+        esac
         [ -x "$tool_bin/$command_name" ] || fail "Free Claude Code installation did not create $tool_bin/$command_name."
     done
 

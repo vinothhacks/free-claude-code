@@ -10,13 +10,15 @@ for free.
 
 import json
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Protocol
 
 from fastapi.responses import JSONResponse, StreamingResponse
 from loguru import logger
 
 from free_claude_code.api.request_ids import new_request_id
-from free_claude_code.api.response_streams import openai_responses_sse_streaming_response
+from free_claude_code.api.response_streams import (
+    openai_responses_sse_streaming_response,
+)
 from free_claude_code.application.errors import ApplicationError
 from free_claude_code.application.execution import TokenCounter
 from free_claude_code.application.ports import ProviderResolver
@@ -66,7 +68,11 @@ def _openai_error_payload(anthropic_error: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def _decoded_chunks(source: AsyncIterator[Any]) -> AsyncIterator[str]:
+class _ChunkStream(Protocol):
+    def __aiter__(self) -> AsyncIterator[object]: ...
+
+
+async def _decoded_chunks(source: _ChunkStream) -> AsyncIterator[str]:
     """Normalise a body iterator that may yield ``bytes`` or ``str``."""
     async for chunk in source:
         if isinstance(chunk, bytes | bytearray):
@@ -206,7 +212,7 @@ class ChatCompletionsHandler:
 
         try:
             payload = json.loads(bytes(response.body).decode("utf-8"))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return response
 
         if not isinstance(payload, dict) or payload.get("type") == "error":
@@ -230,7 +236,7 @@ class ChatCompletionsHandler:
         if payload is None:
             try:
                 payload = json.loads(bytes(response.body).decode("utf-8"))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return response
         if not isinstance(payload, dict):
             return response

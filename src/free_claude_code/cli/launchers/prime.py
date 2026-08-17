@@ -1,7 +1,5 @@
 """Installed ``fcc-prime`` launcher for Prime Agent."""
 
-from __future__ import annotations
-
 import json
 import os
 import sys
@@ -39,34 +37,38 @@ def launch(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(1)
 
     binary_path = ensure_prime_binary()
-    agent_dir = Path(tempfile.mkdtemp(prefix="fcc-prime-"))
-    write_prime_agent_dir(
-        agent_dir,
-        proxy_root_url=proxy_root_url,
-        model=settings.model,
-    )
-    env = build_prime_launcher_env(
-        proxy_root_url=proxy_root_url,
-        auth_token=settings.proxy_auth_token,
-        model=settings.model,
-        agent_dir=agent_dir,
-        base_env=os.environ,
-    )
-    print(
-        f"fcc-prime: using FCC provider 'fcc' model {settings.model} via {proxy_root_url}",
-        file=sys.stderr,
-    )
-    run_client_process(
-        command=build_prime_launcher_command(
-            binary_path=binary_path,
-            argv=args,
+    session_dir = tempfile.TemporaryDirectory(prefix="fcc-prime-")
+    try:
+        agent_dir = Path(session_dir.name)
+        write_prime_agent_dir(
+            agent_dir,
+            proxy_root_url=proxy_root_url,
             model=settings.model,
-        ),
-        env=env,
-        binary_name=Path(binary_path).name,
-        display_name=_DISPLAY_NAME,
-        install_hint=prime_install_hint(),
-    )
+        )
+        env = build_prime_launcher_env(
+            proxy_root_url=proxy_root_url,
+            auth_token=settings.proxy_auth_token,
+            model=settings.model,
+            agent_dir=agent_dir,
+            base_env=os.environ,
+        )
+        print(
+            f"fcc-prime: using FCC provider 'fcc' model {settings.model} via {proxy_root_url}",
+            file=sys.stderr,
+        )
+        run_client_process(
+            command=build_prime_launcher_command(
+                binary_path=binary_path,
+                argv=args,
+                model=settings.model,
+            ),
+            env=env,
+            binary_name=Path(binary_path).name,
+            display_name=_DISPLAY_NAME,
+            install_hint=prime_install_hint(),
+        )
+    finally:
+        session_dir.cleanup()
 
 
 def build_prime_launcher_command(

@@ -1,6 +1,9 @@
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from free_claude_code.cli.launchers.ensure import (
     ClientSpec,
@@ -26,6 +29,7 @@ from free_claude_code.cli.launchers.prime import (
     build_prime_models_document,
     write_prime_agent_dir,
 )
+from free_claude_code.config.settings import Settings
 
 
 def test_openai_compat_env_points_at_local_proxy_without_parent_keys() -> None:
@@ -43,7 +47,9 @@ def test_openai_compat_env_points_at_local_proxy_without_parent_keys() -> None:
 
 def test_proxy_bearer_token_uses_sentinel_when_empty() -> None:
     assert proxy_bearer_token("  ") == "fcc-no-auth"
-    assert openai_compat_base_url("http://127.0.0.1:8082/") == "http://127.0.0.1:8082/v1"
+    assert (
+        openai_compat_base_url("http://127.0.0.1:8082/") == "http://127.0.0.1:8082/v1"
+    )
 
 
 def test_prime_models_json_uses_env_name_not_secret() -> None:
@@ -188,3 +194,123 @@ def test_wsl_proxy_url_rewrites_loopback_to_windows_host(monkeypatch) -> None:
     assert proxy_url_for_client("http://127.0.0.1:8082", native) == (
         "http://127.0.0.1:8082"
     )
+
+
+def _launcher_settings() -> Settings:
+    return Settings(
+        host="0.0.0.0",
+        port=9191,
+        proxy_auth_enabled=False,
+        proxy_auth_token="proxy-token",
+        model="open_router/openai/gpt-4o-mini",
+    )
+
+
+def _tracking_temporary_directory(
+    created: list[Path],
+) -> type[tempfile.TemporaryDirectory[str]]:
+    class TrackingTemporaryDirectory(tempfile.TemporaryDirectory[str]):
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            created.append(Path(self.name))
+
+    return TrackingTemporaryDirectory
+
+
+def test_prime_launch_removes_session_directory() -> None:
+    from free_claude_code.cli.launchers.prime import launch
+
+    created: list[Path] = []
+    settings = _launcher_settings()
+    with (
+        patch(
+            "free_claude_code.cli.launchers.prime.get_settings", return_value=settings
+        ),
+        patch(
+            "free_claude_code.cli.launchers.prime.preflight_proxy", return_value=None
+        ),
+        patch(
+            "free_claude_code.cli.launchers.prime.ensure_prime_binary",
+            return_value="prime-agent",
+        ),
+        patch(
+            "free_claude_code.cli.launchers.prime.tempfile.TemporaryDirectory",
+            _tracking_temporary_directory(created),
+        ),
+        patch(
+            "free_claude_code.cli.launchers.prime.run_client_process",
+            side_effect=SystemExit(0),
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch([])
+
+    assert exc_info.value.code == 0
+    assert created
+    assert all(not path.exists() for path in created)
+
+
+def test_muse_launch_skips_temp_dir_without_mcp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from free_claude_code.cli.launchers.muse import launch
+
+    monkeypatch.delenv("FCC_MUSE_MCP_COMMAND", raising=False)
+    monkeypatch.delenv("FCC_MUSE_MCP_SERVERS", raising=False)
+    settings = _launcher_settings()
+    with (
+        patch(
+            "free_claude_code.cli.launchers.muse.get_settings", return_value=settings
+        ),
+        patch("free_claude_code.cli.launchers.muse.preflight_proxy", return_value=None),
+        patch(
+            "free_claude_code.cli.launchers.muse.ensure_muse_client",
+            return_value=ClientSpec(kind="native", binary="muse"),
+        ),
+        patch(
+            "free_claude_code.cli.launchers.muse.tempfile.TemporaryDirectory",
+            side_effect=AssertionError("Muse should not create a temp dir without MCP"),
+        ),
+        patch(
+            "free_claude_code.cli.launchers.muse.run_client_process",
+            side_effect=SystemExit(0),
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch([])
+
+    assert exc_info.value.code == 0
+
+
+def test_muse_launch_removes_mcp_session_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from free_claude_code.cli.launchers.muse import launch
+
+    monkeypatch.setenv("FCC_MUSE_MCP_COMMAND", "npx")
+    created: list[Path] = []
+    settings = _launcher_settings()
+    with (
+        patch(
+            "free_claude_code.cli.launchers.muse.get_settings", return_value=settings
+        ),
+        patch("free_claude_code.cli.launchers.muse.preflight_proxy", return_value=None),
+        patch(
+            "free_claude_code.cli.launchers.muse.ensure_muse_client",
+            return_value=ClientSpec(kind="native", binary="muse"),
+        ),
+        patch(
+            "free_claude_code.cli.launchers.muse.tempfile.TemporaryDirectory",
+            _tracking_temporary_directory(created),
+        ),
+        patch(
+            "free_claude_code.cli.launchers.muse.run_client_process",
+            side_effect=SystemExit(0),
+        ),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch([])
+
+    assert exc_info.value.code == 0
+    assert created
+    assert all(not path.exists() for path in created)

@@ -11,12 +11,18 @@ from pathlib import Path
 
 import pytest
 
+FCC_ARCHIVE_URL = (
+    "https://github.com/vinothhacks/free-claude-code/archive/refs/heads/main.zip"
+)
 FCC_COMMANDS = (
     "fcc-desktop",
     "fcc-server",
     "fcc-claude",
     "fcc-codex",
     "fcc-pi",
+    "fcc-atomic",
+    "fcc-prime",
+    "fcc-muse",
     "fcc-init",
     "free-claude-code",
 )
@@ -78,6 +84,14 @@ if [ "${1:-}" = "config" ] && [ "${2:-}" = "get" ] && [ "${3:-}" = "prefix" ]; t
     printf '%s\n' "$FAKE_NPM_PREFIX"
     exit 0
 fi
+if [ "${1:-}" = "install" ] && [ "${2:-}" = "-g" ]; then
+    dest=${FAKE_NPM_PREFIX:-$HOME/.local}
+    mkdir -p "$dest/bin"
+    cp "$FAKE_FIXTURES/prime-command.sh" "$dest/prime-agent"
+    cp "$FAKE_FIXTURES/prime-command.sh" "$dest/bin/prime-agent"
+    chmod +x "$dest/prime-agent" "$dest/bin/prime-agent"
+    exit 0
+fi
 exit 71
 """
 
@@ -100,10 +114,9 @@ if [ "${{1:-}}" = "tool" ] && [ "${{2:-}}" = "install" ]; then
         exit 33
     fi
     mkdir -p "$FAKE_TOOL_BIN"
-    cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/fcc-server"
-    cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/fcc-desktop"
-    cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/fcc-claude"
-    cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/fcc-pi"
+    for name in fcc-server fcc-desktop fcc-claude fcc-pi fcc-atomic fcc-prime fcc-muse; do
+        cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/$name"
+    done
     if [ "$FAIL_STEP" != "fcc-missing" ]; then
         cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/fcc-codex"
     fi
@@ -300,9 +313,22 @@ case "$url" in
     *claude.ai*) source="$FAKE_FIXTURES/claude-installer.sh" ;;
     *chatgpt.com*) source="$FAKE_FIXTURES/codex-installer.sh" ;;
     *pi.dev*) source="$FAKE_FIXTURES/pi-installer.sh" ;;
+    *dev.meta.ai*) source="$FAKE_FIXTURES/muse-installer.sh" ;;
+    *prime-agent/releases/latest/download/stable*)
+        printf '0.7.2\\n' > "$output"
+        exit 0
+        ;;
+    *api.github.com/repos/PrimeIntellect-ai/prime-agent*)
+        printf '{"tag_name":"v0.7.2"}\\n' > "$output"
+        exit 0
+        ;;
+    *prime-agent-*.tgz|*prime-agent/releases/download/*)
+        printf 'fake-prime-tarball\\n' > "$output"
+        exit 0
+        ;;
     *rtk-ai*)
         if [ "$FAIL_STEP" = "rtk-install" ]; then
-            printf 'invalid archive\n' > "$output"
+            printf 'invalid archive\\n' > "$output"
             exit 0
         fi
         source="$FAKE_FIXTURES/rtk-x86_64-unknown-linux-musl.tar.gz"
@@ -359,9 +385,20 @@ cp "$FAKE_FIXTURES/uv-command.sh" "$HOME/.local/bin/uv"
 chmod +x "$HOME/.local/bin/uv"
 """,
     )
+    _write_executable(
+        fixtures / "muse-installer.sh",
+        """#!/bin/sh
+echo "muse-install" >> "$CALL_LOG"
+mkdir -p "$HOME/.local/bin"
+cp "$FAKE_FIXTURES/muse-command.sh" "$HOME/.local/bin/muse"
+chmod +x "$HOME/.local/bin/muse"
+""",
+    )
     _write_executable(fixtures / "claude-command.sh", _posix_command("claude"))
     _write_executable(fixtures / "codex-command.sh", _posix_command("codex"))
     _write_executable(fixtures / "pi-command.sh", _posix_command("pi"))
+    _write_executable(fixtures / "muse-command.sh", _posix_command("muse"))
+    _write_executable(fixtures / "prime-command.sh", _posix_command("prime-agent"))
     rtk_command = _posix_rtk_command().encode()
     with tarfile.open(
         fixtures / "rtk-x86_64-unknown-linux-musl.tar.gz", "w:gz"
@@ -445,7 +482,7 @@ def test_install_sh_fresh_install_is_verified(posix_harness: PosixHarness) -> No
         call.startswith(
             "uv:tool install --force --refresh-package free-claude-code "
             "--python 3.14.0 free-claude-code @ "
-            "https://github.com/Alishahryar1/free-claude-code/archive/refs/heads/main.zip"
+            "https://github.com/vinothhacks/free-claude-code/archive/refs/heads/main.zip"
         )
         for call in calls
     )
@@ -542,7 +579,7 @@ def test_install_sh_preserves_existing_rtk_and_configures_only_selected_agent(
 ) -> None:
     posix_harness.add_rtk()
 
-    result = posix_harness.run_interactive("n\ny\nn\ny\n")
+    result = posix_harness.run_interactive("n\ny\nn\nn\nn\ny\n")
 
     assert result.returncode == 0, result.stdout
     assert "verifying it without updating it" in result.stdout
@@ -589,7 +626,7 @@ def test_install_sh_stops_when_rtk_setup_fails(
 def test_install_sh_reprompts_then_installs_only_selected_agent(
     posix_harness: PosixHarness,
 ) -> None:
-    result = posix_harness.run_interactive("n\nn\nn\nn\ny\nn\nn\n")
+    result = posix_harness.run_interactive("n\nn\nn\nn\nn\nn\ny\nn\nn\nn\nn\n")
 
     assert result.returncode == 0, result.stdout
     assert "Select at least one coding agent." in result.stdout
@@ -606,7 +643,7 @@ def test_install_sh_reprompts_then_installs_only_selected_agent(
 def test_install_sh_rejects_uninstalled_only_selection(
     posix_harness: PosixHarness,
 ) -> None:
-    result = posix_harness.run_interactive("n\nn\ny\nn\n", fail_step="pi-skip")
+    result = posix_harness.run_interactive("n\nn\ny\nn\nn\nn\n", fail_step="pi-skip")
 
     assert result.returncode != 0
     assert "No selected coding agent was installed." in result.stdout
@@ -924,7 +961,7 @@ def test_install_sh_voice_flags_only_change_fcc_spec(
     assert result.returncode == 0, result.stderr
     assert any(
         "--torch-backend cu130 free-claude-code[voice,voice_local] @ "
-        "https://github.com/Alishahryar1/free-claude-code/archive/refs/heads/main.zip"
+        "https://github.com/vinothhacks/free-claude-code/archive/refs/heads/main.zip"
         in call
         for call in posix_harness.calls()
     )
@@ -1154,7 +1191,14 @@ def _batch_npm() -> str:
 echo npm:%*>>"%CALL_LOG%"
 if "%1"=="prefix" if "%2"=="-g" echo %FAKE_NPM_PREFIX%& exit /b 0
 if "%1"=="config" if "%2"=="get" if "%3"=="prefix" echo %FAKE_NPM_PREFIX%& exit /b 0
+if "%1"=="install" if "%2"=="-g" goto install_prime
 exit /b 71
+:install_prime
+if not exist "%FAKE_NPM_PREFIX%" mkdir "%FAKE_NPM_PREFIX%"
+if not exist "%FAKE_NPM_PREFIX%\bin" mkdir "%FAKE_NPM_PREFIX%\bin"
+copy /y "%FAKE_FIXTURES%\prime-command.cmd" "%FAKE_NPM_PREFIX%\prime-agent.cmd" >nul
+copy /y "%FAKE_FIXTURES%\prime-command.cmd" "%FAKE_NPM_PREFIX%\bin\prime-agent.cmd" >nul
+exit /b 0
 """
 
 
@@ -1178,6 +1222,9 @@ copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-server.cmd" >nul
 copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-desktop.cmd" >nul
 copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-claude.cmd" >nul
 copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-pi.cmd" >nul
+copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-atomic.cmd" >nul
+copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-prime.cmd" >nul
+copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-muse.cmd" >nul
 if not "%FAIL_STEP%"=="fcc-missing" copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-codex.cmd" >nul
 exit /b 0
 :update_shell
@@ -1290,6 +1337,9 @@ def powershell_harness(
     log = tmp_path / "calls.log"
     for path in (bin_dir, fixtures, tool_bin, home, local_app_data, app_data):
         path.mkdir(parents=True)
+    where_exe = Path(os.environ["SYSTEMROOT"]) / "System32" / "where.exe"
+    if where_exe.is_file():
+        shutil.copy2(where_exe, bin_dir / "wsl.exe")
 
     (fixtures / "claude-command.cmd").write_text(
         _batch_client("claude"), encoding="utf-8"
@@ -1298,6 +1348,9 @@ def powershell_harness(
         _batch_client("codex"), encoding="utf-8"
     )
     (fixtures / "pi-command.cmd").write_text(_batch_client("pi"), encoding="utf-8")
+    (fixtures / "prime-command.cmd").write_text(
+        _batch_client("prime-agent"), encoding="utf-8"
+    )
     (fixtures / "rtk-command.cmd").write_text(_batch_rtk(), encoding="utf-8")
     (fixtures / "uv-command.cmd").write_text(_batch_uv("0.11.28"), encoding="utf-8")
     (fixtures / "fcc-command.cmd").write_text(
@@ -1365,7 +1418,11 @@ Add-Content -LiteralPath $env:CALL_LOG -Value "uv-install"
 $ErrorActionPreference = "Stop"
 function Invoke-RestMethod {
     [CmdletBinding()]
-    param([string] $Uri, [string] $OutFile)
+    param(
+        [string] $Uri,
+        [string] $OutFile,
+        [object] $Headers
+    )
 
     Add-Content -LiteralPath $env:CALL_LOG -Value "download:$Uri"
     if (
@@ -1376,6 +1433,12 @@ function Invoke-RestMethod {
         ($env:FAIL_STEP -eq "uv-download" -and $Uri.Contains("astral.sh"))
     ) {
         throw "simulated download failure"
+    }
+    if ([string]::IsNullOrWhiteSpace($OutFile) -and $Uri.Contains("prime-agent/releases/latest/download/stable")) {
+        return "0.7.2"
+    }
+    if ([string]::IsNullOrWhiteSpace($OutFile) -and $Uri.Contains("api.github.com") -and $Uri.Contains("prime-agent")) {
+        return [pscustomobject] @{ tag_name = "v0.7.2" }
     }
     if ($Uri.Contains("claude.ai")) {
         $source = Join-Path $env:FAKE_FIXTURES "claude-installer.ps1"
@@ -1396,6 +1459,22 @@ function Invoke-RestMethod {
         throw "unexpected installer URL: $Uri"
     }
     Copy-Item -LiteralPath $source -Destination $OutFile -Force
+}
+function Invoke-WebRequest {
+    [CmdletBinding()]
+    param(
+        [string] $Uri,
+        [string] $OutFile,
+        [switch] $UseBasicParsing,
+        [object] $Headers
+    )
+
+    Add-Content -LiteralPath $env:CALL_LOG -Value "download:$Uri"
+    if ($Uri.Contains("prime-agent") -and -not [string]::IsNullOrWhiteSpace($OutFile)) {
+        [IO.File]::WriteAllText($OutFile, "fake-prime-tarball")
+        return
+    }
+    throw "unexpected installer URL: $Uri"
 }
 function Get-Process {
     [CmdletBinding()]
@@ -1466,7 +1545,7 @@ def test_install_ps1_fresh_install_is_verified(
             "uv:tool install --force --refresh-package free-claude-code "
             "--python cpython-3.14.0-windows-x86_64-none "
             '"free-claude-code @ '
-            'https://github.com/Alishahryar1/free-claude-code/archive/refs/heads/main.zip"'
+            'https://github.com/vinothhacks/free-claude-code/archive/refs/heads/main.zip"'
         )
         for call in calls
     )
@@ -1846,21 +1925,7 @@ def test_install_ps1_stops_without_success_on_each_failure(
 def test_install_ps1_dry_run_never_executes_commands(
     powershell_harness: PowerShellHarness,
 ) -> None:
-    result = subprocess.run(
-        [
-            powershell_harness.powershell,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(_repo_root() / "scripts" / "install.ps1"),
-            "-DryRun",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=powershell_harness.env,
-    )
+    result = powershell_harness.run("-DryRun")
 
     assert result.returncode == 0, result.stderr
     assert powershell_harness.calls() == []
@@ -1901,7 +1966,7 @@ def test_install_ps1_voice_flags_only_change_fcc_spec(
     assert result.returncode == 0, result.stderr
     assert any(
         '--torch-backend cu130 "free-claude-code[voice,voice_local] @ '
-        'https://github.com/Alishahryar1/free-claude-code/archive/refs/heads/main.zip"'
+        'https://github.com/vinothhacks/free-claude-code/archive/refs/heads/main.zip"'
         in call
         for call in powershell_harness.calls()
     )
@@ -1962,10 +2027,7 @@ def test_installers_use_native_clients_and_single_python_selection() -> None:
         assert "@earendil-works/pi-coding-agent" not in text
         assert "git+" not in text
         assert "git --version" not in text
-        assert (
-            "https://github.com/Alishahryar1/free-claude-code/archive/refs/heads/main.zip"
-            in text
-        )
+        assert FCC_ARCHIVE_URL in text
         assert "python install" not in text
         assert "--refresh-package" in text
         assert "tool update-shell" in text
@@ -2023,9 +2085,9 @@ Invoke-DownloadedPowerShellInstaller `
 @pytest.mark.parametrize(
     ("answers", "expected", "expected_messages"),
     [
-        (("", "", "", ""), "True,True,True,False", ()),
+        (("", "", "", "", "", ""), "True,True,True,False", ()),
         (
-            ("maybe", "n", "n", "n", "n", "y", "n", "y"),
+            ("maybe", "n", "n", "n", "n", "n", "n", "y", "n", "n", "n", "y"),
             "False,True,False,True",
             ("Please answer Y or N.", "Select at least one coding agent."),
         ),
@@ -2083,12 +2145,18 @@ $ErrorActionPreference = "Stop"
 $script:InstallClaudeCode = $false
 $script:InstallCodex = $true
 $script:InstallPi = $false
+$script:InstallMuse = $false
+$script:InstallPrime = $false
 $script:PiAvailable = $false
+$script:MuseAvailable = $false
+$script:PrimeAvailable = $false
 $script:Calls = @()
 function Write-Step {{ param([string] $Message) }}
 function Ensure-ClaudeCode {{ $script:Calls += "claude" }}
 function Ensure-Codex {{ $script:Calls += "codex" }}
 function Ensure-Pi {{ $script:Calls += "pi"; $script:PiAvailable = $true }}
+function Ensure-Muse {{ $script:Calls += "muse" }}
+function Ensure-Prime {{ $script:Calls += "prime" }}
 function Ensure-SelectedCodingAgents {{{body}}}
 Ensure-SelectedCodingAgents
 Write-Output "calls:$($script:Calls -join ',')"
@@ -2150,11 +2218,17 @@ $ErrorActionPreference = "Stop"
 $script:InstallClaudeCode = $false
 $script:InstallCodex = $false
 $script:InstallPi = $true
+$script:InstallMuse = $false
+$script:InstallPrime = $false
 $script:PiAvailable = $false
+$script:MuseAvailable = $false
+$script:PrimeAvailable = $false
 function Write-Step {{ param([string] $Message) }}
 function Ensure-ClaudeCode {{ }}
 function Ensure-Codex {{ }}
 function Ensure-Pi {{ }}
+function Ensure-Muse {{ }}
+function Ensure-Prime {{ }}
 function Ensure-SelectedCodingAgents {{{body}}}
 Ensure-SelectedCodingAgents
 """
